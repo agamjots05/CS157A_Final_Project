@@ -158,7 +158,7 @@ public class Main {
         }
     }
 
-    // Insert ex to add a new customer
+    // Add a new customer
     private static void addCustomer(Connection conn) {
         String first = readNonEmptyLine("First name: ");
         String last = readNonEmptyLine("Last name: ");
@@ -185,7 +185,7 @@ public class Main {
         }
     }
 
-    // Update ex by changing a products quantity
+    // Update a product's quantity
     private static void updateProductQuantity(Connection conn) {
         int productId = readInt("Enter product ID: ");
         int delta = readInt("Enter change in quantity (ex. -1 or 5): ");
@@ -206,7 +206,7 @@ public class Main {
         }
     }
 
-    // Delete ex by deleting a customer completely
+    // Delete a customer completely
     private static void deleteCustomer(Connection conn) {
         int customerId = readInt("Enter customer ID to delete: ");
 
@@ -224,8 +224,7 @@ public class Main {
         }
     }
 
-    // ---- Step 4: Transactional workflow ----
-    // Simple version: create an order with ONE product item.
+    // Transactional workflow that uses COMMIT and ROLLBACK
     private static void runPlaceOrderTransaction(Connection conn) {
         int customerId = readInt("Customer ID: ");
         int productId = readInt("Product ID: ");
@@ -244,7 +243,7 @@ public class Main {
         try {
             conn.setAutoCommit(false);  // start transaction
 
-            // 1. Get product price
+            // Get product price
             double unitPrice;
             try (PreparedStatement ps = conn.prepareStatement(selectPrice)) {
                 ps.setInt(1, productId);
@@ -261,7 +260,7 @@ public class Main {
 
             double subtotal = unitPrice * quantity;
 
-            // 2. Insert into Order
+            // Insert into Orderr
             int orderId;
             try (PreparedStatement ps = conn.prepareStatement(insertOrder, Statement.RETURN_GENERATED_KEYS)) {
                 ps.setInt(1, customerId);
@@ -276,7 +275,7 @@ public class Main {
                 }
             }
 
-            // 3. Insert into OrderItem (this will also fire your trigger to reduce quantity)
+            // Insert into OrderItem (this will also activate the trigger to reduce quantity)
             try (PreparedStatement ps = conn.prepareStatement(insertOrderItem)) {
                 ps.setInt(1, orderId);
                 ps.setInt(2, productId);
@@ -285,7 +284,7 @@ public class Main {
                 ps.executeUpdate();
             }
 
-            // If we reach here, everything worked -> COMMIT
+            // if no issues --> COMMIT
             conn.commit();
             System.out.println("Order placed successfully with order_id = " + orderId);
 
@@ -305,7 +304,7 @@ public class Main {
         }
     }
 
-    // Customer Order Summary
+    // Change the order status of an order
     private static void runViewAndProcedureDemo(Connection conn) {
         System.out.println("\nView: CustomerOrderSummary");
         String selectView = "SELECT * FROM CustomerOrderSummary";
@@ -327,10 +326,11 @@ public class Main {
             System.out.println("Error reading view: " + e.getMessage());
         }
 
-        int orderId = readInt("\nEnter the Order ID for the order whose status needs to be changed (stored procedure): ");
+        int orderId = readInt("\nEnter the Order ID for the order whose status needs to be changed: ");
 
-        int orderStatus = readInt("\nSelect an option: \n1. Change order status to 'Order Shipped' \n2. Change order status to 'Delivered' \nEnter option: ");
+        int orderStatus = readInt("\nSelect an option: \n1. Change order status from 'Order Placed' to 'Order Shipped' \n2. Change order status from 'Order Shipped' to 'Delivered' \nEnter option: ");
 
+        // mark an order as shipped
         if (orderStatus == 1) {
             String callProc = "{CALL mark_order_shipped(?) }";
             try (CallableStatement cs = conn.prepareCall(callProc)) {
@@ -341,6 +341,7 @@ public class Main {
                 System.out.println("Error calling stored procedure: " + e.getMessage());
             }
         }
+        // mark an order as delivered
         else if (orderStatus == 2) {
             String callProc = "{CALL mark_order_delivered(?) }";
             try (CallableStatement cs = conn.prepareCall(callProc)) {
@@ -354,6 +355,25 @@ public class Main {
         else {
             System.out.println("Not a valid option.");
         }
-        
+
+        // print order summary again
+        System.out.println("\nUpdated: CustomerOrderSummary");
+        try (PreparedStatement ps = conn.prepareStatement(selectView);
+             ResultSet rs = ps.executeQuery()) {
+            while (rs.next()) {
+                System.out.printf(
+                        "Customer ID: %d | Name: %s %s | Order ID: %d | Ordered on: %s | Total: $%.2f (%s)%n",
+                        rs.getInt("customer_id"),
+                        rs.getString("first_name"),
+                        rs.getString("last_name"),
+                        rs.getInt("order_id"),
+                        rs.getDate("order_date"),
+                        rs.getDouble("total_amount"),
+                        rs.getString("order_status")
+                );
+            }
+        } catch (SQLException e) {
+            System.out.println("Error reading view: " + e.getMessage());
+        }
     }
 }
