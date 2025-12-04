@@ -1,6 +1,4 @@
 import java.io.FileInputStream;
-import java.io.IOException;
-import java.math.BigDecimal;
 import java.sql.*;
 import java.util.Properties;
 import java.util.Scanner;
@@ -28,61 +26,55 @@ public class Main {
                 int choice = readInt("Choose an option: ");
 
                 switch (choice) {
-                    case 1:
-                        viewProducts(conn);
+                    case 1 : viewProducts(conn);
                         break;
-                    case 2:
-                        viewCustomers(conn);
+                    case 2 : viewCustomers(conn);
                         break;
-                    case 3:
-                        addCustomer(conn);
+                    case 3 : viewOrders(conn);
                         break;
-                    case 4:
-                        updateProductQuantity(conn);
+                    case 4 : addCustomer(conn);
                         break;
-                    case 5:
-                        deleteCustomer(conn);
+                    case 5 : updateProductQuantity(conn);
                         break;
-                    case 6:
-                        runPlaceOrderTransaction(conn); // transactional workflow
+                    case 6 : deleteCustomer(conn);
                         break;
-                    case 7:
-                        runViewAndProcedureDemo(conn);  // Step 6: view + stored procedure
+                    case 7 : runPlaceOrderTransaction(conn); // transactional workflow
                         break;
-                    case 0:
-                        running = false;
+                    case 8 : runViewAndProcedureDemo(conn);  // view + stored procedure
                         break;
-                    default:
-                        System.out.println("Invalid option. Try again.");
+                    case 0 : running = false;
                         break;
+                    default : System.out.println("Invalid option. Try again.");
                 }
             }
-            System.out.println("Thank you for visiting the Farmer's Market!");
+            System.out.println("\nThank you for visiting the Farmer's Market Database");
 
-            // close connection
+            // close connection and scanner
             conn.close();
             scanner.close();
-        } catch (IOException | ClassNotFoundException | SQLException e) {
+        } catch (SQLException e) {
+            System.out.println("Database error:");
             e.printStackTrace();
         }
     }
 
     private static void printMenu() {
-        System.out.println("\n=== Farmer's Market Console Menu ===");
+        System.out.println("\n--- F4 Farmer's Market Console Menu ---");
         System.out.println("1. View Products");
         System.out.println("2. View Customers");
-        System.out.println("3. Add New Customer");
-        System.out.println("4. Update Product Quantity");
-        System.out.println("5. Delete Customer");
-        System.out.println("6. Place New Order (transaction: COMMIT/ROLLBACK)");
-        System.out.println("7. Show View + Stored Procedure demo");
-        System.out.println("0. Exit");
+        System.out.println("3. View Orders");
+        System.out.println("4. Insert New Customer");
+        System.out.println("5. Update Product Quantity");
+        System.out.println("6. Delete Customer");
+        System.out.println("7. Place New Order");
+        System.out.println("8. View and Change Order Status");
+        System.out.println("0. Quit");
     }
 
-    // Validate input
-    private static int readInt(String prompt) {
+    // helper to trim user input
+    private static int readInt(String in) {
         while (true) {
-            System.out.print(prompt);
+            System.out.print(in);
             try {
                 int value = Integer.parseInt(scanner.nextLine().trim());
                 return value;
@@ -92,13 +84,22 @@ public class Main {
         }
     }
 
-    // Get user input
-    private static String readLine(String prompt) {
-        System.out.print(prompt);
+    // helper to trim user input
+    private static String readLine(String in) {
+        System.out.print(in);
         return scanner.nextLine().trim();
     }
-
-
+    //important when adding to customers
+    public static String readNonEmptyLine(String in){
+        while (true) {
+            String line = readLine(in);
+            if (!line.isEmpty()) {
+                return line;
+            }
+            System.out.println("This entry can't be empty.");
+        }
+    }
+    // Select examples using prepared statements for tables (products, customers, orderr)
     private static void viewProducts(Connection conn) {
         String sql = "SELECT product_id, product_name, unit_price, quantity_available FROM Product";
         try (PreparedStatement ps = conn.prepareStatement(sql);
@@ -109,12 +110,12 @@ public class Main {
                         "%d: %s - $%.2f (qty: %d)%n",
                         rs.getInt("product_id"),
                         rs.getString("product_name"),
-                        rs.getBigDecimal("unit_price"),
+                        rs.getDouble("unit_price"),
                         rs.getInt("quantity_available")
                 );
             }
         } catch (SQLException e) {
-            System.out.println("Error viewing products: " + e.getMessage());
+            System.out.println("Issue with viewing products: " + e.getMessage());
         }
     }
 
@@ -133,19 +134,42 @@ public class Main {
                 );
             }
         } catch (SQLException e) {
-            System.out.println("Error viewing customers: " + e.getMessage());
+            System.out.println("Issue with viewing customers: " + e.getMessage());
         }
     }
 
-    // ---- INSERT example with validation ----
+    private static void viewOrders(Connection conn) {
+        String sql = "SELECT order_id, customer_id, order_date, total_amount, order_status FROM Orderr";
+        try (PreparedStatement ps = conn.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+            System.out.println("\nOrders:");
+            while (rs.next()) {
+                System.out.printf(
+                        "Order ID: %d | Customer ID: %d | Order Date: %s | Total: %.2f | Status: %s %n",
+                        rs.getInt("order_id"),
+                        rs.getInt("customer_id"),
+                        rs.getString("order_date"),
+                        rs.getDouble("total_amount"),
+                        rs.getString("order_status")
+                );
+            }
+        } catch (SQLException e) {
+            System.out.println("Issue with viewing orders: " + e.getMessage());
+        }
+    }
+
+    // Insert ex to add a new customer
     private static void addCustomer(Connection conn) {
-        String first = readLine("First name: ");
-        String last = readLine("Last name: ");
+        String first = readNonEmptyLine("First name: ");
+        String last = readNonEmptyLine("Last name: ");
         String email = readLine("Email: ");
         String phone = readLine("Phone: ");
         String address = readLine("Shipping address: ");
 
-        String sql = "INSERT INTO Customer (first_name, last_name, email, phone, shipping_address, registration_date) VALUES (?, ?, ?, ?, ?, CURDATE())";
+        String sql = """
+            INSERT INTO Customer (first_name, last_name, email, phone, shipping_address, registration_date)
+            VALUES (?, ?, ?, ?, ?, CURDATE())
+            """;
 
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, first);
@@ -155,16 +179,16 @@ public class Main {
             ps.setString(5, address);
 
             int rows = ps.executeUpdate();
-            System.out.println("Customer added. Rows affected: " + rows);
+            System.out.println("Customer added. " + rows);
         } catch (SQLException e) {
-            System.out.println("Error adding customer: " + e.getMessage());
+            System.out.println("Issue with adding customer: " + e.getMessage());
         }
     }
 
-    // ---- UPDATE example ----
+    // Update ex by changing a products quantity
     private static void updateProductQuantity(Connection conn) {
         int productId = readInt("Enter product ID: ");
-        int delta = readInt("Enter change in quantity (e.g., -1 or 5): ");
+        int delta = readInt("Enter change in quantity (ex. -1 or 5): ");
 
         String sql = "UPDATE Product SET quantity_available = quantity_available + ? WHERE product_id = ?";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
@@ -178,11 +202,11 @@ public class Main {
                 System.out.println("Quantity updated.");
             }
         } catch (SQLException e) {
-            System.out.println("Error updating product quantity: " + e.getMessage());
+            System.out.println("Issue with updating product quantity: " + e.getMessage());
         }
     }
 
-    // ---- DELETE example ----
+    // Delete ex by deleting a customer completely
     private static void deleteCustomer(Connection conn) {
         int customerId = readInt("Enter customer ID to delete: ");
 
@@ -196,7 +220,7 @@ public class Main {
                 System.out.println("Customer deleted.");
             }
         } catch (SQLException e) {
-            System.out.println("Error deleting customer: " + e.getMessage());
+            System.out.println("Issue with deleting customer: " + e.getMessage());
         }
     }
 
@@ -208,14 +232,20 @@ public class Main {
         int quantity = readInt("Quantity: ");
 
         String selectPrice = "SELECT unit_price FROM Product WHERE product_id = ?";
-        String insertOrder = "INSERT INTO `Order` (customer_id, order_date, total_amount, order_status) VALUES (?, CURDATE(), ?, 'Order Placed')";
-        String insertOrderItem = "INSERT INTO OrderItem (order_id, product_id, quantity, subtotal_amount) VALUES (?, ?, ?, ?)";
+        String insertOrder = """
+            INSERT INTO Orderr (customer_id, order_date, total_amount, order_status)
+            VALUES (?, CURDATE(), ?, 'Order Placed')
+            """;
+        String insertOrderItem = """
+            INSERT INTO OrderItem (order_id, product_id, quantity, subtotal_amount)
+            VALUES (?, ?, ?, ?)
+            """;
 
         try {
             conn.setAutoCommit(false);  // start transaction
 
             // 1. Get product price
-            BigDecimal unitPrice;
+            double unitPrice;
             try (PreparedStatement ps = conn.prepareStatement(selectPrice)) {
                 ps.setInt(1, productId);
                 try (ResultSet rs = ps.executeQuery()) {
@@ -225,17 +255,17 @@ public class Main {
                         conn.setAutoCommit(true);
                         return;
                     }
-                    unitPrice = rs.getBigDecimal("unit_price");
+                    unitPrice = rs.getDouble("unit_price");
                 }
             }
 
-            BigDecimal subtotal = unitPrice.multiply(new java.math.BigDecimal(quantity));
+            double subtotal = unitPrice * quantity;
 
             // 2. Insert into Order
             int orderId;
             try (PreparedStatement ps = conn.prepareStatement(insertOrder, Statement.RETURN_GENERATED_KEYS)) {
                 ps.setInt(1, customerId);
-                ps.setBigDecimal(2, subtotal);
+                ps.setDouble(2, subtotal);
                 ps.executeUpdate();
 
                 try (ResultSet keys = ps.getGeneratedKeys()) {
@@ -251,7 +281,7 @@ public class Main {
                 ps.setInt(1, orderId);
                 ps.setInt(2, productId);
                 ps.setInt(3, quantity);
-                ps.setBigDecimal(4, subtotal);
+                ps.setDouble(4, subtotal);
                 ps.executeUpdate();
             }
 
@@ -275,21 +305,21 @@ public class Main {
         }
     }
 
-    // ---- Step 6: View + Stored Procedure demo ----
+    // Customer Order Summary
     private static void runViewAndProcedureDemo(Connection conn) {
-        System.out.println("\n-- View: CustomerOrderSummary --");
+        System.out.println("\nView: CustomerOrderSummary");
         String selectView = "SELECT * FROM CustomerOrderSummary";
         try (PreparedStatement ps = conn.prepareStatement(selectView);
              ResultSet rs = ps.executeQuery()) {
             while (rs.next()) {
                 System.out.printf(
-                        "Cust %d %s %s | Order %d on %s | $%.2f (%s)%n",
+                        "Customer ID: %d | Name: %s %s | Order ID: %d | Ordered on: %s | Total: $%.2f (%s)%n",
                         rs.getInt("customer_id"),
                         rs.getString("first_name"),
                         rs.getString("last_name"),
                         rs.getInt("order_id"),
                         rs.getDate("order_date"),
-                        rs.getBigDecimal("total_amount"),
+                        rs.getDouble("total_amount"),
                         rs.getString("order_status")
                 );
             }
@@ -297,17 +327,33 @@ public class Main {
             System.out.println("Error reading view: " + e.getMessage());
         }
 
-        int orderId = readInt("\nEnter an order_id to mark as shipped (uses stored procedure): ");
+        int orderId = readInt("\nEnter the Order ID for the order whose status needs to be changed (stored procedure): ");
 
-        String callProc = "{ CALL mark_order_shipped(?) }";
-        try (CallableStatement cs = conn.prepareCall(callProc)) {
-            cs.setInt(1, orderId);
-            cs.execute();
-            System.out.println("Stored procedure called. Check order status.");
-        } catch (SQLException e) {
-            System.out.println("Error calling stored procedure: " + e.getMessage());
+        int orderStatus = readInt("\nSelect an option: \n1. Change order status to 'Order Shipped' \n2. Change order status to 'Delivered' \nEnter option: ");
+
+        if (orderStatus == 1) {
+            String callProc = "{CALL mark_order_shipped(?) }";
+            try (CallableStatement cs = conn.prepareCall(callProc)) {
+                cs.setInt(1, orderId);
+                cs.execute();
+                System.out.println("Stored procedure called. Check order status.");
+            } catch (SQLException e) {
+                System.out.println("Error calling stored procedure: " + e.getMessage());
+            }
         }
+        else if (orderStatus == 2) {
+            String callProc = "{CALL mark_order_delivered(?) }";
+            try (CallableStatement cs = conn.prepareCall(callProc)) {
+                cs.setInt(1, orderId);
+                cs.execute();
+                System.out.println("Stored procedure called. Check order status.");
+            } catch (SQLException e) {
+                System.out.println("Error calling stored procedure: " + e.getMessage());
+            }
+        }
+        else {
+            System.out.println("Not a valid option.");
+        }
+        
     }
-
-
 }
