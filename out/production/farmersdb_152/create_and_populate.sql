@@ -64,8 +64,10 @@ CREATE TABLE OrderItem (
                                ON UPDATE CASCADE,
                            PRIMARY KEY (order_id, product_id)
 );
--- insert data
 
+
+
+-- insert data
 INSERT INTO Farmer (farm_name, contact_person, email, phone, address)
 VALUES ("Green Valley Acres", "Samuel Turner", "sam.turner@greenvalleyfarms.com", "(408)555-1234", "124 Meadowbrook Rd, Helena, MT 59601"),
        ("Sunrise Harvest Farm", "Linda Cooper", "linda.cooper@sunriseharvest.com", "(309) 555-9472", "89 Harvest Ln, Peoria, IL 61615"),
@@ -115,7 +117,6 @@ VALUES (2,1,1, 5.99),
        (3, 3, 2, 5.00);
 
 --view
-
 CREATE OR REPLACE VIEW CustomerOrderSummary AS
 SELECT
     C.customer_id,
@@ -126,12 +127,9 @@ SELECT
     O.total_amount,
     O.order_status
 FROM Customer C
-         JOIN Order O ON C.customer_id = O.customer_id;
+         JOIN Orderr O ON C.customer_id = O.customer_id;
 
 -- procedure
-
-use farmers_market;
-
 DELIMITER //
 CREATE PROCEDURE mark_order_shipped(IN p_order_id INT)
 BEGIN
@@ -155,7 +153,7 @@ BEGIN
 END //
 DELIMITER ;
 
---index
 
+--index
 CREATE INDEX idx_product_category
     ON Product (category_name);
