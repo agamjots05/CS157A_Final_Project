@@ -129,8 +129,9 @@ SELECT
 FROM Customer C
          JOIN Orderr O ON C.customer_id = O.customer_id;
 
--- procedure
+-- procedure 1
 DELIMITER //
+DROP PROCEDURE IF EXISTS mark_order_shipped //
 CREATE PROCEDURE mark_order_shipped(IN p_order_id INT)
 BEGIN
 UPDATE Orderr
@@ -140,8 +141,21 @@ WHERE order_id = p_order_id
 END //
 DELIMITER ;
 
+-- procedure 2
+DELIMITER //
+DROP PROCEDURE IF EXISTS mark_order_delivered //
+CREATE PROCEDURE mark_order_delivered(IN p_order_id INT)
+BEGIN
+UPDATE Orderr
+SET order_status = 'Delivered'
+WHERE order_id = p_order_id
+  AND order_status = 'Order Shipped';
+END //
+DELIMITER ;
 
--- trigger
+
+
+-- trigger will be important when placing orders quantity changes should be relfected
 DELIMITER //
 CREATE TRIGGER update_product_quantity_after_order
     AFTER INSERT ON OrderItem

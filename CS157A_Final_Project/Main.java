@@ -26,9 +26,9 @@ public class Main {
                         break;
                     case 6 : deleteCustomer(conn);
                         break;
-                    case 7 : runPlaceOrderTransaction(conn); // transactional workflow
+                    case 7 : runPlaceOrderTransaction(conn); //transaction
                         break;
-                    case 8 : runViewAndProcedureDemo(conn);  // Step 6: view + stored procedure
+                    case 8 : runViewAndProcedureDemo(conn);  //1 view + 2 procedures (flagging order status)
                         break;
                     case 0 : running = false;
                         break;
@@ -208,8 +208,7 @@ public class Main {
         }
     }
 
-    // ---- Step 4: Transactional workflow ----
-    // Simple version: create an order with ONE product item.
+    // Transaction Workflow - place an order (who, what, how much)
     private static void runPlaceOrderTransaction(Connection conn) {
         int customerId = readInt("Customer ID: ");
         int productId = readInt("Product ID: ");
@@ -228,7 +227,7 @@ public class Main {
         try {
             conn.setAutoCommit(false);  // start transaction
 
-            // 1. Get product price
+            // Select the price -- need for subtotal
             double unitPrice;
             try (PreparedStatement ps = conn.prepareStatement(selectPrice)) {
                 ps.setInt(1, productId);
@@ -245,7 +244,7 @@ public class Main {
 
             double subtotal = unitPrice * quantity;
 
-            // 2. Insert into Order
+            // Insert into Order using ps
             int orderId;
             try (PreparedStatement ps = conn.prepareStatement(insertOrder, Statement.RETURN_GENERATED_KEYS)) {
                 ps.setInt(1, customerId);
@@ -256,11 +255,11 @@ public class Main {
                     if (!keys.next()) {
                         throw new SQLException("Failed to get generated order_id");
                     }
-                    orderId = keys.getInt(1);
+                    orderId = keys.getInt(1); // need this key as we need a related orderItem where orderId is required
                 }
             }
 
-            // 3. Insert into OrderItem (this will also fire your trigger to reduce quantity)
+            // Insert into the actual OrderItem table.. Note that you need to activate the trigger in MySQL so that the quantity actually does decrease
             try (PreparedStatement ps = conn.prepareStatement(insertOrderItem)) {
                 ps.setInt(1, orderId);
                 ps.setInt(2, productId);
@@ -269,14 +268,14 @@ public class Main {
                 ps.executeUpdate();
             }
 
-            // If we reach here, everything worked -> COMMIT
+            // Everything worked -- Commit changes
             conn.commit();
             System.out.println("Order placed successfully with order_id = " + orderId);
 
         } catch (SQLException e) {
             System.out.println("Error during order transaction, rolling back: " + e.getMessage());
             try {
-                conn.rollback();  // ROLLBACK on failure
+                conn.rollback(); // Failure happened -- Need for Rollback to ensure consistency
             } catch (SQLException ex) {
                 System.out.println("Rollback failed: " + ex.getMessage());
             }
@@ -297,12 +296,12 @@ public class Main {
              ResultSet rs = ps.executeQuery()) {
             while (rs.next()) {
                 System.out.printf(
-                        "Cust %d %s %s | Order %d on %s | $%.2f (%s)%n",
+                        "Customer %d %s %s | Order %d on %s | $%.2f (%s)%n",
                         rs.getInt("customer_id"),
                         rs.getString("first_name"),
                         rs.getString("last_name"),
                         rs.getInt("order_id"),
-                        rs.getDate("order_date"),
+                        rs.getString("order_date"),
                         rs.getDouble("total_amount"),
                         rs.getString("order_status")
                 );
@@ -311,15 +310,31 @@ public class Main {
             System.out.println("Error reading view: " + e.getMessage());
         }
 
-        int orderId = readInt("\nEnter an order_id to mark as shipped (stored procedure): ");
+        int orderId = readInt("\nEnter an order_id to mark as shipped (or -1 to skip): ");
 
-        String callProc = "{CALL mark_order_shipped(?) }";
-        try (CallableStatement cs = conn.prepareCall(callProc)) {
-            cs.setInt(1, orderId);
-            cs.execute();
+        if (orderId != -1) {
+            String callProc = "{CALL mark_order_shipped(?) }"; //make sure you actually added this in your sql
+            try (CallableStatement cs = conn.prepareCall(callProc)) {
+                cs.setInt(1, orderId);
+                cs.execute();
+                System.out.println("Stored procedure called. Check order status.");
+            } catch (SQLException e) {
+                System.out.println("Error calling stored procedure: " + e.getMessage());
+            }
+        }else{
+            System.out.println("Mark Order as Shipped Procedure skipped.");
+        }
+
+
+        int orderId2 = readInt("\nEnter an order_id to mark as delivered (stored procedure): ");
+        String callProc2 = "{CALL mark_order_delivered(?) }"; //make sure you actually added this in your sql
+        try (CallableStatement cs2 = conn.prepareCall(callProc2)) {
+            cs2.setInt(1, orderId2);
+            cs2.execute();
             System.out.println("Stored procedure called. Check order status.");
         } catch (SQLException e) {
             System.out.println("Error calling stored procedure: " + e.getMessage());
         }
+
     }
 }

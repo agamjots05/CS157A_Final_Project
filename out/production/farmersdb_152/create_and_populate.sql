@@ -131,6 +131,7 @@ FROM Customer C
 
 -- procedure
 DELIMITER //
+DROP PROCEDURE IF EXISTS mark_order_shipped //
 CREATE PROCEDURE mark_order_shipped(IN p_order_id INT)
 BEGIN
 UPDATE Orderr
@@ -139,6 +140,19 @@ WHERE order_id = p_order_id
   AND order_status = 'Order Placed';
 END //
 DELIMITER ;
+
+-- procedure 2
+DELIMITER //
+DROP PROCEDURE IF EXISTS mark_order_delivered //
+CREATE PROCEDURE mark_order_delivered(IN p_order_id INT)
+BEGIN
+UPDATE Orderr
+SET order_status = 'Delivered'
+WHERE order_id = p_order_id
+  AND order_status = 'Order Shipped';
+END //
+DELIMITER ;
+
 
 
 -- trigger
